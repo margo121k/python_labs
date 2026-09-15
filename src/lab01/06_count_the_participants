@@ -1,0 +1,8 @@
+N = int(input())
+offline = online = 0
+for i in range(N):
+    line = input().split()
+    if line[-1]=='True':
+        offline+=1
+    else: online+=1
+print(offline, online)

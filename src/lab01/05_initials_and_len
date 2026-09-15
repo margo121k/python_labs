@@ -1,0 +1,6 @@
+name = input("ФИО: ")
+words = name.split()
+initials = "".join([w[0] for w in words])
+lenght_name = len(' '.join(words))
+print(f"Инициалы: {initials}.")
+print(f"Длина (символов): {lenght_name}")
