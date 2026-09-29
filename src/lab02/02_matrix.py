@@ -36,7 +36,7 @@ except ValueError:
 def col_sums(mat: list[list[float | int]]) -> list[float]:
     if any(len(mat[i])!=len(mat[i+1]) for i in range(len(mat)-1)):
                 raise ValueError
-    return [sum(i) for i in transpose(mat)]
+    return [sum([mat[j][i] for j in range(len(mat))]) for i in range(len(mat[0]))]
 
 print('col_sums')
 print(col_sums([[1, 2, 3], [4, 5, 6]]))
