@@ -43,7 +43,7 @@
 ---
 
 # ЛР2 - Коллекции и матрицы (list/tuple/set/dict)
-### Задание 1
+### Задание 1 (arrays.py)
 ### min_max
 ```python
 def min_max(nums: list[float | int]) -> tuple[float | int, float | int]:
@@ -107,7 +107,7 @@ def flatten(mat: list[list | tuple]) -> list:
 
 ---
 
-### Задание 2
+### Задание 2 (matrix.py)
 ### transpose
 ```python
 def transpose(mat: list[list[float | int]]) -> list[list]:
@@ -153,3 +153,39 @@ def col_sums(mat: list[list[float | int]]) -> list[float]:
 
 ![](images/lab02/061.png)
 ![Результат выполнения Задания 2.3](images/lab02/062.png)
+
+---
+
+### Задание 3 (tuples.py)
+```python
+def format_record(rec: tuple[str, str, float]) -> str:
+    if not isinstance(rec, tuple) or len(rec) != 3:
+        raise TypeError("Запись должна быть кортежем из 3 элементов")
+    fio, group, gpa = rec
+    if not isinstance(fio, str) or not isinstance(group, str):
+        raise TypeError('ФИО и группы должны быть строками')
+    if not isinstance(gpa, (int, float)):
+        raise TypeError("GPA должен быть числом")
+
+    fio = fio.split() 
+    fio_clean = " ".join(fio)
+    if fio_clean == "":
+        raise ValueError("ФИО не может быть пустой строкой")
+    if group == "":
+        raise ValueError("Группа не может быть пустой строкой")
+    if not (0.0 <= gpa <= 5.0):
+        raise ValueError("GPA должен быть в диапазоне от 0.0 до 5.0")
+    
+    fio1 = fio[0][0].upper() + fio[0][1:] + " "
+    for i in range(len(fio)):
+        if i!=0:
+            fio1 += fio[i][0].upper() + '.'
+    return f"{fio1}, гр. {group.strip()}, GPA {gpa:.2f}"
+```
+1. **Строгая валидация типов:** Функция проверяет структуру кортежа на длину и типы данных всех трех полей (`str`, `str`, `int/float`). При несоответствии выбрасывается исключение `TypeError`.
+2. **Очистка данных:** С помощью `.split()` строка ФИО разбивается по пробелам, что эффективно убирает любые лишние и внутренние дублирующиеся пробельные символы. Пустые значения полей и выход `gpa` за границы `[0.0; 5.0]` вызывают исключение `ValueError`.
+3. **Генерация инициалов:** Из полученного списка слов формируется новая строка: первая буква фамилии приводится к верхнему регистру (`.upper()`), а последующие элементы (имя и отчество при наличии) итерируются в цикле, преобразуясь в заглавные буквы с точками.
+4. **Вывод результата:** Итоговая строка собирается через f-строку, где пробелы в названии группы зачищаются методом `.strip()`, а оценка округляется ровно до двух знаков после запятой при помощи спецификатора `:.2f`.
+
+![](images/lab02/071.png)
+![Результат выполнения Задания 3](images/lab02/072.png)
