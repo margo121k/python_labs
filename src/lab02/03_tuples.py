@@ -1,9 +1,17 @@
 def format_record(rec: tuple[str, str, float]) -> str:
+    """
+    Форматирует кортеж с данными студента в строку.
+    
+    :rec: Кортеж вида (fio, group, gpa)
+    :raises TypeError: Если типы элементов кортежа не соответствуют (str, str, float/int).
+    :raises ValueError: Если ФИО или группа пустые после очистки, или GPA вне диапазона [0.0, 5.0].
+    :return: Сформированная строка по шаблону.
+    """
     if not isinstance(rec, tuple) or len(rec) != 3:
         raise TypeError("Запись должна быть кортежем из 3 элементов")
     fio, group, gpa = rec
     if not isinstance(fio, str) or not isinstance(group, str):
-        raise TypeError('ФИО и группы должны быть строками')
+        raise TypeError('ФИО и группа должны быть строками')
     if not isinstance(gpa, (int, float)):
         raise TypeError("GPA должен быть числом")
 
@@ -31,9 +39,9 @@ try:
 except ValueError as e:
     print(f'ValueError: {e}')
 try:
-    print(format_record(("Иванов Иван Иванович", '', 2.99)))
-except ValueError as e:
-    print(f'ValueError: {e}')
+    print(format_record(("Иванов Иван Иванович", 6, 2.99)))
+except TypeError as e:
+    print(f'TypeError: {e}')
 try:
     print(format_record(("Иванов Иван Иванович", 'BIVT-25', 5.04)))
 except ValueError as e:
