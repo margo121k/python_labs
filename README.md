@@ -159,11 +159,19 @@ def col_sums(mat: list[list[float | int]]) -> list[float]:
 ### Задание 3 (tuples.py)
 ```python
 def format_record(rec: tuple[str, str, float]) -> str:
+    """
+    Форматирует кортеж с данными студента в строку.
+    
+    :rec: Кортеж вида (fio, group, gpa)
+    :raise TypeError: Если типы элементов кортежа не соответствуют (str, str, float/int).
+    :raise ValueError: Если ФИО или группа пустые после очистки, или GPA вне диапазона [0.0, 5.0].
+    :return: Сформированная строка по шаблону.
+    """
     if not isinstance(rec, tuple) or len(rec) != 3:
         raise TypeError("Запись должна быть кортежем из 3 элементов")
     fio, group, gpa = rec
     if not isinstance(fio, str) or not isinstance(group, str):
-        raise TypeError('ФИО и группы должны быть строками')
+        raise TypeError('ФИО и группа должны быть строками')
     if not isinstance(gpa, (int, float)):
         raise TypeError("GPA должен быть числом")
 
