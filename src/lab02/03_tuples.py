@@ -3,8 +3,8 @@ def format_record(rec: tuple[str, str, float]) -> str:
     Форматирует кортеж с данными студента в строку.
     
     :rec: Кортеж вида (fio, group, gpa)
-    :raises TypeError: Если типы элементов кортежа не соответствуют (str, str, float/int).
-    :raises ValueError: Если ФИО или группа пустые после очистки, или GPA вне диапазона [0.0, 5.0].
+    :raise TypeError: Если типы элементов кортежа не соответствуют (str, str, float/int).
+    :raise ValueError: Если ФИО или группа пустые после очистки, или GPA вне диапазона [0.0, 5.0].
     :return: Сформированная строка по шаблону.
     """
     if not isinstance(rec, tuple) or len(rec) != 3:
