@@ -92,7 +92,7 @@ def flatten(mat: list[list | tuple]) -> list:
     result = []
     for i in mat:
         if isinstance(i, (list, tuple)):
-            result += list(i)
+            result += i
         else:
             raise TypeError
     return result
