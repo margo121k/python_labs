@@ -3,11 +3,8 @@ from src.lib.text import normalize, tokenize, count_freq, top_n
 
 def main() -> None:
     raw_text = sys.stdin.read()
- 
-    normalized = normalize(raw_text)
-    tokens = tokenize(normalized)
- 
-    freq = count_freq(tokens)
+
+    freq = count_freq(tokenize(normalize(raw_text)))
     total_words = len(tokens)
     unique_words = len(freq)
  
