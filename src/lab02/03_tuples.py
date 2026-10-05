@@ -30,8 +30,8 @@ def format_record(rec: tuple[str, str, float]) -> str:
             fio1 += fio[i][0].upper() + '.'
     return f"{fio1}, гр. {group.strip()}, GPA {gpa:.2f}"
 
-print(format_record(("Иванов Иван Иванович", "BIVT-25", 4.6)))
-print(format_record(("Петров Пётр", "IKBO-12", 5.0)))
+print(format_record(("Иванов Андрей Иванович", "BIVT-25", 4.6)))
+print(format_record(("Петров Евгений", "IKBO-12", 5.0)))
 print(format_record(("Петров Пётр Петрович", "IKBO-12", 5.0)))
 print(format_record(("  сидорова  анна   сергеевна ", "ABB-01", 3.999)))
 try:
@@ -43,6 +43,6 @@ try:
 except TypeError as e:
     print(f'TypeError: {e}')
 try:
-    print(format_record(("Иванов Иван Иванович", 'BIVT-25', 5.04)))
+    print(format_record(("Иванов Иван Иванович", 'BIVT-25', -2)))
 except ValueError as e:
     print(f'ValueError: {e}')
