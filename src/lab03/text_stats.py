@@ -4,7 +4,8 @@ from src.lib.text import normalize, tokenize, count_freq, top_n
 def main() -> None:
     raw_text = sys.stdin.read()
 
-    freq = count_freq(tokenize(normalize(raw_text)))
+    tokens = tokenize(normalize(raw_text))
+    freq = count_freq(tokens)
     total_words = len(tokens)
     unique_words = len(freq)
  
