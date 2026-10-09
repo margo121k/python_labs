@@ -40,3 +40,4 @@ def write_csv(rows: Iterable[Sequence], path: str | Path, header: tuple[str, ...
             w.writerow(header)
         for r in rows:
             w.writerow(r)
+
