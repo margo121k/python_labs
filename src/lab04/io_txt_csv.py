@@ -41,3 +41,6 @@ def write_csv(rows: Iterable[Sequence], path: str | Path, header: tuple[str, ...
         for r in rows:
             w.writerow(r)
 
+def ensure_parent_dir(path: str | Path) -> None:
+    """Создать родительские директории для path, если их ещё нет."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
