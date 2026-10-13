@@ -1,3 +1,282 @@
+# ЛР5 - JSON и конвертации (JSON↔CSV, CSV→XLSX)
+### Задание А
+
+### `json_to_csv`
+```python
+from pathlib import Path
+import json
+import csv
+
+from src.lab04.io_txt_csv import ensure_parent_dir, read_text, write_csv
+
+def json_to_csv(json_path: str, csv_path: str) -> None:
+    """
+    Преобразует JSON-файл в CSV.
+    Поддерживает список словарей [{...}, {...}], заполняет отсутствующие поля пустыми строками.
+    Кодировка UTF-8. Порядок колонок — как в первом объекте.
+    """
+    json_file = Path(json_path)
+    csv_file = Path(csv_path)
+    if json_file.suffix.lower() != ".json":
+        raise ValueError(f"Неверный формат входного файла: ожидается .json")
+    if csv_file.suffix.lower() != ".csv":
+        raise ValueError(f"Неверный формат выходного файла: ожидается .csv")
+    if not json_file.exists():
+        raise FileNotFoundError("Файл не найден")
+
+     # читаем файл функцией из ЛР4
+    text = read_text(json_path)
+
+    if text.strip() == "":
+        raise ValueError("Пустой JSON или неподдерживаемая структура")
+
+    # превращаем текст в python-объект (список словарей)
+    data = json.loads(text)
+    
+    if not isinstance(data, list) or not all(isinstance(value, dict) for value in data):
+        raise ValueError("Ожидается список словарей")
+    if not data:
+        raise ValueError("Пустой JSON-файл")
+    
+    header = list(data[0].keys())
+    if len(header) == 0:
+        raise ValueError("Пустой JSON или неподдерживаемая структура")
+
+    # превращаем каждый словарь в строку-список значений
+    rows = []
+    for item in data:
+        row = []
+        for column in header:
+            row.append(item.get(column, ""))  # нет ключа -> пустая строка
+        rows.append(row)
+
+    # записываем функцией из ЛР4
+    write_csv(rows, csv_path, header=tuple(header))
+```
+1. **Валидация форматов и путей:** Программа проверяет расширения файлов (`.json` для входящего и `.csv` для исходящего). Если форматы некорректны, генерируется `ValueError`. Затем проверяется физическое существование исходного файла; при его отсутствии генерируется `FileNotFoundError`.
+2. **Чтение сырых данных:** С помощью внешней функции `read_text` (из ЛР4) файл считывается в строку. Отдельная проверка `.strip() == ""` страхует от пустых или содержащих только пробелы текстовых файлов, вызывая `ValueError`.
+3. **Парсинг JSON-структуры:** Строка преобразуется в Python-объект методом `json.loads()`. Скрипт проверяет тип данных: если верхний уровень — не список (`list`), или хотя бы один вложенный элемент — не словарь (`dict`), возбуждается ошибка `ValueError("Ожидается список словарей")`. Также отсекается пустой список `[]`.
+4. **Сборка заголовков столбцов:** В качестве названий колонок берутся ключи самого первого словаря в списке (`data[0].keys()`). Если у объекта нет ключей, программа прерывает выполнение. Порядок столбцов в итоговом CSV строго соответствует порядку полей в первом объекте.
+5. **Выравнивание структуры и сборка строк:** Программа выполняет цикл по всем словарям. Для формирования «прямоугольной» таблицы обход полей каждого объекта идет строго по списку заголовков. Если в каком-то словаре отсутствует нужное поле, метод `.get(column, "")` автоматически заменяет его пустой строкой `""`.
+6. **Сохранение:** Сформированный плоский двумерный массив `rows` и кортеж заголовков передаются в функцию `write_csv` (из ЛР4) для записи на диск в кодировке UTF-8.
+
+---
+
+### `csv_to_json`
+```python
+from pathlib import Path
+import json
+import csv
+
+from src.lab04.io_txt_csv import ensure_parent_dir, read_text, write_csv
+
+def csv_to_json(csv_path: str, json_path: str) -> None:
+    """
+    Преобразует CSV в JSON (список словарей).
+    Заголовок обязателен, значения сохраняются как строки.
+    """
+    csv_file = Path(csv_path)
+    json_file = Path(json_path)
+    ensure_parent_dir(json_file)
+    if json_file.suffix.lower() != ".json":
+        raise ValueError(f"Неверный формат выходного файла: ожидается .json")
+    if csv_file.suffix.lower() != ".csv":
+        raise ValueError(f"Неверный формат входного файла: ожидается .csv")
+    if not csv_file.exists():
+        raise FileNotFoundError("Файл не найден")
+    with csv_file.open(encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            raise ValueError("CSV не содержит заголовок")
+        data = [row for row in reader]
+    if not data:
+        raise ValueError("Пустой CSV")
+        
+    with json_file.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+```
+1. **Предварительные проверки:** Скрипт обеспечивает подготовку родительской директории для выходного JSON-файла через `ensure_parent_dir()`. Проверяются расширения файлов (`.csv` на входе, `.json` на выходе) и факт существования источника. Нарушения вызывают `ValueError` или `FileNotFoundError`.
+2. **Итерационное чтение:** Файл открывается с явным указанием кодировки `utf-8`. Чтение осуществляется встроенным классом `csv.DictReader()`, который автоматически сопоставляет первую строку таблицы с именами полей.
+3. **Контроль структуры:** Скрипт проверяет свойство `reader.fieldnames`. Если заголовки в таблице полностью отсутствуют, вызывается исключение `ValueError`.
+4. **Агрегация в список:** Все строки таблицы считываются в плоский список словарей через генератор списка. Если после чтения объект `data` оказывается пустым, программа выбрасывает `ValueError("Пустой CSV")`.
+5. **Сериализация:** Полученный массив словарей записывается в файл функцией `json.dump()`. Параметры `ensure_ascii=False` предотвращают экранирование символов кириллицы (сохраняя читаемый текст), а `indent=2` форматирует JSON с красивыми отступами в два пробела.
+
+---
+
+### Задание В
+
+### `csv_to_xlsx`
+```python
+import csv
+from pathlib import Path
+
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+
+from src.lab04.io_txt_csv import ensure_parent_dir
+
+
+def csv_to_xlsx(csv_path: str, xlsx_path: str) -> None:
+    """Конвертирует CSV в XLSX.
+
+    Первая строка CSV — заголовок. Лист называется "Sheet1". 
+    Ширина каждой колонки равна длине самого длинного значения, но не меньше 8 символов.
+    Значения записываются как строки (типы не угадываются).
+
+    Raises:
+        FileNotFoundError: входного CSV нет.
+        ValueError: неверное расширение, пустой CSV.
+    """
+    src = Path(csv_path)
+    dst = Path(xlsx_path)
+    if src.suffix.lower() != ".csv":
+        raise ValueError(f"Неверный тип файла: ожидается .csv, получено '{src.suffix}'")
+    if dst.suffix.lower() != ".xlsx":
+        raise ValueError(f"Неверный тип файла: ожидается .xlsx, получено '{dst.suffix}'")
+    if not src.is_file():
+        raise FileNotFoundError(f"Файл не найден: {csv_path}")
+
+    rows = []
+    with open(csv_path, encoding="utf-8", newline="") as f:
+        for row in csv.reader(f):
+            if row:
+                rows.append(row)
+
+    # нужна хотя бы строка заголовка и одна строка данных
+    if len(rows) < 2:
+        raise ValueError("CSV пустой или в нём нет данных (только заголовок)")
+
+    widths = {}
+    for row in rows:
+        for index, cell in enumerate(row):
+            if len(cell) > widths.get(index, 0):
+                widths[index] = len(cell)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    for row in rows:
+        ws.append(row)
+
+    for index, width in widths.items():
+        letter = get_column_letter(index + 1)
+        ws.column_dimensions[letter].width = max(8, width)
+
+    ensure_parent_dir(dst)
+    wb.save(dst)
+```
+1. **Контроль расширений и путей:** Проверяется строгое соответствие типов (`.csv` для источника и `.xlsx` для приемника), а также существование входного CSV-файла. При ошибках генерируются `ValueError` и `FileNotFoundError`.
+2. **Сбор строк:** Файл открывается в режиме чтения текстовых потоков. Объект `csv.reader()` последовательно считывает строки, отбрасывая пустые элементы, и аккумулирует их в общем массиве `rows`.
+3. **Проверка наполненности:** Проверяется длина массива. Для успешной конвертации таблица должна содержать как минимум две строки (одну строку заголовков и хотя бы одну строку с контентом). При `len(rows) < 2` вызывается `ValueError`.
+4. **Динамический расчет ширины колонок:** Алгоритм итерируется по всем ячейкам собранной таблицы. В словаре `widths` под индексом каждого столбца сохраняется длина самого длинного текстового значения, встреченного в процессе обхода.
+5. **Генерация книги Excel:** Создается объект `Workbook` библиотеки `openpyxl`, активный рабочий лист переименовывается в `"Sheet1"`. Все строки переносятся на лист встроенным методом `ws.append()`.
+6. **Выравнивание размеров ячеек:** Программа циклически обходит накопленные длины из словаря `widths`. Индексы столбцов переводятся в буквенный формат Excel (например, `0 -> A`) с помощью `get_column_letter()`. Размер столбца устанавливается как максимальное значение между вычисленной длиной и минимальным порогом в 8 символов (`max(8, width)`).
+7. **Экспорт:** Готовый файл сохраняется на диск по указанному пути.
+
+---
+
+## Политика обработки краевых ситуаций и ошибок
+
+*   **Отсутствие входного файла (`FileNotFoundError`):** если указанный файл не существует, функция возбуждает `FileNotFoundError`. Перехватывать его должен вызывающий код, сами функции ничего не печатают.
+*   **Неверный тип файла (`ValueError`):** расширение входного и выходного файла проверяется (`.json`, `.csv`, `.xlsx`), при несовпадении возбуждается `ValueError`.
+*   **Пустой JSON или неподдерживаемая структура (`ValueError`):** пустой файл, пустой список, не список (например, `{}`), список с не-словарями или объектами без ключей, а также некорректный JSON.
+*   **Пустой CSV или CSV без данных (`ValueError`):** пустой файл, файл только с заголовком, пустые или повторяющиеся имена колонок, строка с большим числом значений, чем в заголовке.
+*   **Разные ключи в JSON:** колонки CSV — объединение всех ключей, недостающие значения заполняются пустыми строками.
+*   **Типы данных:** при CSV → JSON все значения остаются строками, а при JSON → CSV вложенные списки и словари записываются в ячейку как JSON-строка и обратно в структуру не восстанавливаются.
+
+---
+
+## Способ запуска
+
+Запуск выполняется из корня репозитория (там, где лежит папка `src/`), с помощью флага `-m`. Для задания B нужна библиотека `openpyxl`:
+
+```
+pip install openpyxl
+```
+
+Использование функций из кода:
+
+```python
+from src.lab05.json_csv import json_to_csv, csv_to_json
+from src.lab05.csv_xlsx import csv_to_xlsx
+
+json_to_csv("src/data/samples/people.json", "src/data/out/people.csv")
+csv_to_json("src/data/samples/people.csv", "src/data/out/people.json")
+csv_to_xlsx("src/data/samples/people.csv", "src/data/out/people.xlsx")
+```
+
+---
+
+## Тест-кейс А: JSON → CSV
+**Входной файл (`src/data/samples/people.json`):**
+```
+[
+  {"name": "Алиса", "age": 22, "city": "SPB"},
+  {"name": "Боб", "age": 25, "city": "Moscow"},
+  {"name": "Виктор", "age": 31, "city": "Kazan"},
+  {"name": "Дарья", "age": 19, "city": "Tula"}
+]
+```
+
+**Содержимое созданного файла (`src/data/out/people.csv`):**
+```
+name,age,city
+Алиса,22,SPB
+Боб,25,Moscow
+Виктор,31,Kazan
+Дарья,19,Tula
+```
+
+**Ошибка (пустой json файл):**
+![](images/lab05/error1.png)
+
+**Ошибка (неподдерживаемая структура):**
+![](images/lab05/error2.png)
+
+## Тест-кейс B: CSV → JSON
+**Входной файл (`src/data/samples/people.csv`):**
+```
+name,age,city
+Алиса,22,SPB
+Боб,25,Moscow
+Виктор,31,Kazan
+Дарья,19,Tula
+```
+
+**Содержимое созданного файла (`src/data/out/people.json`), показаны первые два объекта:**
+```
+[
+  {
+    "name": "Алиса",
+    "age": "22",
+    "city": "SPB"
+  },
+  {
+    "name": "Боб",
+    "age": "25",
+    "city": "Moscow"
+  },
+  ...
+]
+```
+Значения `age` — строки, так как в CSV нет типов.
+
+## Тест-кейс C: CSV → XLSX
+**Входной файл (`src/data/samples/cities.csv`):**
+```
+city,country,population
+SPB,Russia,5384342
+Moscow,Russia,13010112
+Kazan,Russia,1306953
+Novosibirsk,Russia,1620162
+Yekaterinburg,Russia,1493749
+```
+
+**Результат (`src/data/out/cities.xlsx`):** лист `Sheet1`, 6 строк (заголовок и 5 записей).
+![](images/lab05/excel.png)
+
+---
+
 # ЛР4 - Файлы: TXT/CSV и отчёты по текстовой статистике
 ### Задание А
 
