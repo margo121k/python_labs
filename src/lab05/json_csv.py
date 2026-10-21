@@ -75,13 +75,13 @@ def csv_to_json(csv_path: str, json_path: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-json_to_csv("src/data/samples/people.json", "src/data/out/people.csv")
-csv_to_json("src/data/samples/people.csv", "src/data/out/people.json")
+# json_to_csv("data/samples/people.json", "data/out/people.csv")
+# csv_to_json("data/samples/people.csv", "data/out/people.json")
 
-csv_to_json("src/data/samples/cities.csv", "src/data/out/cities.json")
+# csv_to_json("data/samples/cities.csv", "data/out/cities.json")
 
-# ValueError - пустой json файл
-json_to_csv("src/data/samples/empty.json", "src/data/out/empty.csv")
+# # ValueError - пустой json файл
+# json_to_csv("data/samples/empty.json", "data/out/empty.csv")
 
-# ValueError - неподдерживаемая структура
-json_to_csv("src/data/samples/broken.json", "src/data/out/broken.csv")
+# # ValueError - неподдерживаемая структура
+# json_to_csv("data/samples/broken.json", "data/out/broken.csv")
