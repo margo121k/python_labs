@@ -1,3 +1,584 @@
+# ЛР8 - Модель данных без классов: запись `Student` как словарь, валидация и сериализация
+### Задание А
+
+### `models.py`
+```python
+from datetime import date
+
+STUDENT_FIELDS = ("fio", "birthdate", "group", "gpa")
+
+
+def _check_text(value, name):
+    """fio и group: строка, после strip() не пустая. Возвращает очищенную строку."""
+    if not isinstance(value, str):
+        raise ValueError(f"поле {name}: ожидается строка")
+    value = value.strip()
+    if value == "":
+        raise ValueError(f"поле {name}: строка не должна быть пустой")
+    return value
+
+
+def _check_birthdate(value):
+    """birthdate: строка YYYY-MM-DD, существующая дата, не в будущем."""
+    if not isinstance(value, str):
+        raise ValueError("поле birthdate: ожидается строка формата YYYY-MM-DD")
+    try:
+        d = date.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"поле birthdate: '{value}' не является датой формата YYYY-MM-DD")
+    if d > date.today():
+        raise ValueError(f"поле birthdate: дата '{value}' в будущем")
+    return value
+
+
+def _check_gpa(value):
+    """gpa: int или float, 0 <= gpa <= 5. Возвращает float."""
+    if not isinstance(value, (int, float)):
+        raise ValueError("поле gpa: ожидается число (int или float)")
+    if not (0 <= value <= 5):
+        raise ValueError(f"поле gpa: значение {value} вне диапазона 0..5")
+    return float(value)
+
+
+def make_student(fio, birthdate, group, gpa):
+    """Собирает запись студента, проверяя каждое поле.
+
+    make_student("Иванов Иван Иванович", "2007-05-14", "БИВТ-26-6-1", 4.3)
+    """
+    return {
+        "fio": _check_text(fio, "fio"),
+        "birthdate": _check_birthdate(birthdate),
+        "group": _check_text(group, "group"),
+        "gpa": _check_gpa(gpa),
+    }
+
+
+def validate_student(rec):
+    """Проверяет готовую запись: набор ключей и значения. При ошибке - ValueError."""
+    if not isinstance(rec, dict):
+        raise ValueError("запись должна быть словарём")
+    if set(rec) != set(STUDENT_FIELDS):
+        missing = set(STUDENT_FIELDS) - set(rec)
+        extra = set(rec) - set(STUDENT_FIELDS)
+        raise ValueError(f"неверный набор ключей: нет {sorted(missing)}, лишние {sorted(extra)}")
+    _check_text(rec["fio"], "fio")
+    _check_birthdate(rec["birthdate"])
+    _check_text(rec["group"], "group")
+    _check_gpa(rec["gpa"])
+
+
+def student_age(rec, today=None):
+    """Полных лет на дату (по умолчанию сегодня)."""
+    b = date.fromisoformat(rec["birthdate"])
+    today = today or date.today()
+    age = today.year - b.year
+    if (today.month, today.day) < (b.month, b.day):  # день рождения ещё не был
+        age -= 1
+    return age
+
+
+def _years_word(n):
+    """Правильная форма слова: 1 год, 2 года, 5 лет."""
+    if 11 <= n % 100 <= 14:
+        return "лет"
+    if n % 10 == 1:
+        return "год"
+    if 2 <= n % 10 <= 4:
+        return "года"
+    return "лет"
+
+
+def format_student(rec):
+    """Иванов И.И. (БИВТ-26-6-1), 19 лет, GPA 4.30"""
+    parts = rec["fio"].split()
+    initials = "".join(p[0].upper() + "." for p in parts[1:3])
+    name = parts[0] + (" " + initials if initials else "")
+    age = student_age(rec)
+    return f"{name} ({rec['group']}), {age} {_years_word(age)}, GPA {rec['gpa']:.2f}"
+
+
+def student_to_dict(rec):
+    """Копия записи (не тот же самый словарь) для сериализации."""
+    validate_student(rec)
+    return {key: rec[key] for key in STUDENT_FIELDS}
+
+
+def student_from_dict(d):
+    """Десериализация: берёт ровно нужные ключи, gpa приводит к float, валидирует."""
+    if not isinstance(d, dict):
+        raise ValueError("запись должна быть объектом (словарём)")
+    for key in STUDENT_FIELDS:
+        if key not in d:
+            raise ValueError(f"нет поля {key}")
+    return make_student(d["fio"], d["birthdate"], d["group"], d["gpa"])
+```
+**Структура записи `Student`** - словарь с фиксированным набором ключей из `STUDENT_FIELDS`:
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `fio` | `str` | ФИО, непустая строка |
+| `birthdate` | `str` | дата `YYYY-MM-DD`, существует и не в будущем |
+| `group` | `str` | группа, например `БИВТ-26-6-1`, непустая строка |
+| `gpa` | `float` | средний балл 0...5 (`int` приводится к `float`) |
+
+**Логика функций:**
+1. **Вспомогательные `_check_text`, `_check_birthdate`, `_check_gpa`:** проверяют по одному полю и возбуждают `ValueError` с сообщением, из которого видно, какое поле и почему не подошло. Правила проверки написаны один раз и используются и в конструкторе, и в `validate_student`.
+2. **`make_student`:** прогоняет все поля через проверки и собирает словарь. Строки очищаются через `strip()`, `gpa` приводится к `float`. Дата проверяется через `date.fromisoformat`, поэтому `2003-02-30` отклоняется. `bool` как `gpa` не допускается.
+3. **`validate_student`:** проверяет готовый словарь. Сначала `set(rec) == set(STUDENT_FIELDS)` (в сообщении указано, каких ключей нет и какие лишние), затем значения каждого поля.
+4. **`student_age`:** считает разницу годов и вычитает 1, если день рождения в этом году ещё не наступил (`(today.month, today.day) < (b.month, b.day)`). Параметр `today` позволяет проверять функцию на фиксированной дате.
+5. **`format_student`:** формирует строку вида `Иванов И.И. (БИВТ-26-6-1), 19 лет, GPA 4.30`. Инициалы берутся из первых букв имени и отчества, слово «год/года/лет» подбирает `_years_word`, `gpa` выводится с двумя знаками.
+6. **`student_to_dict`:** проверяет запись и возвращает её **копию** (новый словарь), а не тот же объект.
+7. **`student_from_dict`:** берёт из словаря ровно нужные ключи (лишние игнорируются), при отсутствии ключа выдаёт `ValueError`, остальное делегирует `make_student`, который приводит `gpa` к `float` и проверяет значения.
+8. **Нет `class`:** используются только словари и функции.
+
+---
+
+### Задание В
+
+### `serialize.py`
+```python
+import json
+from pathlib import Path
+
+from src.lab08.models import student_to_dict, student_from_dict
+
+
+def students_to_json(students, path):
+    """Сохраняет список записей в JSON (массив объектов)."""
+    data = [student_to_dict(s) for s in students]
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def students_from_json(path):
+    """Читает JSON-массив и возвращает список валидных записей.
+
+    Политика: skip - битые записи пропускаются, в конце печатается,
+    сколько пропущено и почему.
+    """
+    if not Path(path).is_file():
+        raise FileNotFoundError(f"Файл не найден: {path}")
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError("ожидается JSON-массив записей")
+
+    students = []
+    errors = []
+    for number, item in enumerate(data, start=1):
+        try:
+            students.append(student_from_dict(item))
+        except ValueError as e:
+            errors.append(f"запись #{number}: {e}")
+
+    if errors:
+        print(f"Пропущено записей: {len(errors)}")
+        for message in errors:
+            print(f"  - {message}")
+    return students
+```
+1. **`students_to_json`:** каждая запись превращается в копию через `student_to_dict` (заодно проверяется), затем весь список записывается как JSON-массив с `ensure_ascii=False` и `indent=2`. Папка для файла создаётся при необходимости.
+2. **`students_from_json`:** читает JSON-массив, каждую запись прогоняет через `student_from_dict`. Если файла нет, возбуждается `FileNotFoundError`, если в файле не массив, то `ValueError`.
+3. **Политика битых записей:** выбрана **`skip`**. Битая запись пропускается, остальные читаются дальше, а в конце в консоль выводится, сколько записей пропущено, с номером каждой записи (нумерация с 1) и причиной. Такая политика позволяет загрузить всё корректное из файла, а проблемные записи видны в отчёте.
+
+---
+
+## Пример работы models.py:
+
+```python 
+def main():
+    s = make_student("Сидоров Пётр Олегович", "2007-09-20", "БИВТ-26-6-1", 4)
+    print("Создан студент:", s)
+
+    # 1. форматирование
+    print("Форматирование:", format_student(s))
+
+    # 2. возраст до и после дня рождения
+    print(student_age(s, date(2026, 9, 19)), student_age(s, date(2026, 9, 20)))
+
+    # 3. неверная дата и gpa = 7
+    for args in (("Иванов Иван Иванович", "2003-02-30", "БИВТ-26-6-1", 4.0),
+                 ("Иванов Иван Иванович", "2007-05-14", "БИВТ-26-6-1", 7)):
+        try:
+            make_student(*args)
+        except ValueError as e:
+            print("ValueError:", e)
+
+if __name__ == "__main__":
+    main()
+```
+
+![](images/lab08/models.png)
+
+## Пример работы serialize.py
+**До преобразования (`data/lab08/students_input.json`):**
+```json
+[
+  {"fio": "Иванов Иван Иванович", "birthdate": "2007-05-14", "group": "БИВТ-26-6-1", "gpa": 4.3},
+  {"fio": "Петрова Анна Сергеевна", "birthdate": "2006-11-02", "group": "БИВТ-26-6-2", "gpa": 3.75},
+  {"fio": "Сидоров Пётр Олегович", "birthdate": "2007-09-20", "group": "БИВТ-26-6-1", "gpa": 5},
+  {"fio": "  Козлова  Мария     Андреевна ", "birthdate": "2005-02-28", "group": "БИВТ-26-6-3", "gpa": 4.0}
+]
+```
+Здесь у третьей записи `gpa` целое число (`5`), а в имени четвёртой лишние пробелы.
+
+**Вывод в консоль:**
+```
+Иванов И.И. (БИВТ-26-6-1), 19 лет, GPA 4.30
+Петрова А.С. (БИВТ-26-6-2), 19 лет, GPA 3.75
+Сидоров П.О. (БИВТ-26-6-1), 19 лет, GPA 5.00
+Козлова М.А. (БИВТ-26-6-3), 21 год, GPA 4.00
+Записано: 4 записей в students_output.json
+```
+**После преобразования (`data/lab08/students_output.json`):**
+```json
+[
+  {
+    "fio": "Иванов Иван Иванович",
+    "birthdate": "2007-05-14",
+    "group": "БИВТ-26-6-1",
+    "gpa": 4.3
+  },
+  {
+    "fio": "Петрова Анна Сергеевна",
+    "birthdate": "2006-11-02",
+    "group": "БИВТ-26-6-2",
+    "gpa": 3.75
+  },
+  {
+    "fio": "Сидоров Пётр Олегович",
+    "birthdate": "2007-09-20",
+    "group": "БИВТ-26-6-1",
+    "gpa": 5.0
+  },
+  {
+    "fio": "Козлова Мария Андреевна",
+    "birthdate": "2005-02-28",
+    "group": "БИВТ-26-6-3",
+    "gpa": 4.0
+  }
+]
+```
+Видно, что `5` стало `5.0`, а лишние пробелы в ФИО убраны.
+
+![](images/lab08/ser1.png)
+
+### Файл с битыми записями (`students_bad.json`)
+**Входной файл:**
+```json
+[
+  {"fio": "Иванов Иван Иванович", "birthdate": "2007-05-14", "group": "БИВТ-26-6-1", "gpa": 4.3},
+  {"fio": "Смирнов Олег Петрович", "birthdate": "2003-02-30", "group": "БИВТ-26-6-1", "gpa": 4.0},
+  {"fio": "Кузнецова Ольга Ивановна", "birthdate": "2006-03-15", "group": "БИВТ-26-6-2", "gpa": 7},
+  {"fio": "Попов Дмитрий Сергеевич", "birthdate": "2006-07-01", "gpa": 3.5},
+  {"fio": "   ", "birthdate": "2006-01-10", "group": "БИВТ-26-6-2", "gpa": 3.0},
+  {"fio": "Орлова Ксения Павловна", "birthdate": "2006-12-05", "group": "БИВТ-26-6-3", "gpa": 4.8}
+]
+```
+**Вывод в консоль:**
+```
+Пропущено записей: 4
+  - запись #2: поле birthdate: '2003-02-30' не является датой формата YYYY-MM-DD
+  - запись #3: поле gpa: значение 7 вне диапазона 0..5
+  - запись #4: нет поля group
+  - запись #5: поле fio: строка не должна быть пустой
+Прочитано валидных: 2
+```
+![](images/lab08/ser2.png)
+
+---
+# ЛР8 - Модель данных без классов: запись `Student` как словарь, валидация и сериализация
+### Задание А
+
+### `models.py`
+```python
+from datetime import date
+
+STUDENT_FIELDS = ("fio", "birthdate", "group", "gpa")
+
+
+def _check_text(value, name):
+    """fio и group: строка, после strip() не пустая. Возвращает очищенную строку."""
+    if not isinstance(value, str):
+        raise ValueError(f"поле {name}: ожидается строка")
+    value = value.strip()
+    if value == "":
+        raise ValueError(f"поле {name}: строка не должна быть пустой")
+    return value
+
+
+def _check_birthdate(value):
+    """birthdate: строка YYYY-MM-DD, существующая дата, не в будущем."""
+    if not isinstance(value, str):
+        raise ValueError("поле birthdate: ожидается строка формата YYYY-MM-DD")
+    try:
+        d = date.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"поле birthdate: '{value}' не является датой формата YYYY-MM-DD")
+    if d > date.today():
+        raise ValueError(f"поле birthdate: дата '{value}' в будущем")
+    return value
+
+
+def _check_gpa(value):
+    """gpa: int или float, 0 <= gpa <= 5. Возвращает float."""
+    if not isinstance(value, (int, float)):
+        raise ValueError("поле gpa: ожидается число (int или float)")
+    if not (0 <= value <= 5):
+        raise ValueError(f"поле gpa: значение {value} вне диапазона 0..5")
+    return float(value)
+
+
+def make_student(fio, birthdate, group, gpa):
+    """Собирает запись студента, проверяя каждое поле.
+
+    make_student("Иванов Иван Иванович", "2007-05-14", "БИВТ-26-6-1", 4.3)
+    """
+    return {
+        "fio": _check_text(fio, "fio"),
+        "birthdate": _check_birthdate(birthdate),
+        "group": _check_text(group, "group"),
+        "gpa": _check_gpa(gpa),
+    }
+
+
+def validate_student(rec):
+    """Проверяет готовую запись: набор ключей и значения. При ошибке - ValueError."""
+    if not isinstance(rec, dict):
+        raise ValueError("запись должна быть словарём")
+    if set(rec) != set(STUDENT_FIELDS):
+        missing = set(STUDENT_FIELDS) - set(rec)
+        extra = set(rec) - set(STUDENT_FIELDS)
+        raise ValueError(f"неверный набор ключей: нет {sorted(missing)}, лишние {sorted(extra)}")
+    _check_text(rec["fio"], "fio")
+    _check_birthdate(rec["birthdate"])
+    _check_text(rec["group"], "group")
+    _check_gpa(rec["gpa"])
+
+
+def student_age(rec, today=None):
+    """Полных лет на дату (по умолчанию сегодня)."""
+    b = date.fromisoformat(rec["birthdate"])
+    today = today or date.today()
+    age = today.year - b.year
+    if (today.month, today.day) < (b.month, b.day):  # день рождения ещё не был
+        age -= 1
+    return age
+
+
+def _years_word(n):
+    """Правильная форма слова: 1 год, 2 года, 5 лет."""
+    if 11 <= n % 100 <= 14:
+        return "лет"
+    if n % 10 == 1:
+        return "год"
+    if 2 <= n % 10 <= 4:
+        return "года"
+    return "лет"
+
+
+def format_student(rec):
+    """Иванов И.И. (БИВТ-26-6-1), 19 лет, GPA 4.30"""
+    parts = rec["fio"].split()
+    initials = "".join(p[0].upper() + "." for p in parts[1:3])
+    name = parts[0] + (" " + initials if initials else "")
+    age = student_age(rec)
+    return f"{name} ({rec['group']}), {age} {_years_word(age)}, GPA {rec['gpa']:.2f}"
+
+
+def student_to_dict(rec):
+    """Копия записи (не тот же самый словарь) для сериализации."""
+    validate_student(rec)
+    return {key: rec[key] for key in STUDENT_FIELDS}
+
+
+def student_from_dict(d):
+    """Десериализация: берёт ровно нужные ключи, gpa приводит к float, валидирует."""
+    if not isinstance(d, dict):
+        raise ValueError("запись должна быть объектом (словарём)")
+    for key in STUDENT_FIELDS:
+        if key not in d:
+            raise ValueError(f"нет поля {key}")
+    return make_student(d["fio"], d["birthdate"], d["group"], d["gpa"])
+```
+**Структура записи `Student`** - словарь с фиксированным набором ключей из `STUDENT_FIELDS`:
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `fio` | `str` | ФИО, непустая строка |
+| `birthdate` | `str` | дата `YYYY-MM-DD`, существует и не в будущем |
+| `group` | `str` | группа, например `БИВТ-26-6-1`, непустая строка |
+| `gpa` | `float` | средний балл 0...5 (`int` приводится к `float`) |
+
+**Логика функций:**
+1. **Вспомогательные `_check_text`, `_check_birthdate`, `_check_gpa`:** проверяют по одному полю и возбуждают `ValueError` с сообщением, из которого видно, какое поле и почему не подошло. Правила проверки написаны один раз и используются и в конструкторе, и в `validate_student`.
+2. **`make_student`:** прогоняет все поля через проверки и собирает словарь. Строки очищаются через `strip()`, `gpa` приводится к `float`. Дата проверяется через `date.fromisoformat`, поэтому `2003-02-30` отклоняется. `bool` как `gpa` не допускается.
+3. **`validate_student`:** проверяет готовый словарь. Сначала `set(rec) == set(STUDENT_FIELDS)` (в сообщении указано, каких ключей нет и какие лишние), затем значения каждого поля.
+4. **`student_age`:** считает разницу годов и вычитает 1, если день рождения в этом году ещё не наступил (`(today.month, today.day) < (b.month, b.day)`). Параметр `today` позволяет проверять функцию на фиксированной дате.
+5. **`format_student`:** формирует строку вида `Иванов И.И. (БИВТ-26-6-1), 19 лет, GPA 4.30`. Инициалы берутся из первых букв имени и отчества, слово «год/года/лет» подбирает `_years_word`, `gpa` выводится с двумя знаками.
+6. **`student_to_dict`:** проверяет запись и возвращает её **копию** (новый словарь), а не тот же объект.
+7. **`student_from_dict`:** берёт из словаря ровно нужные ключи (лишние игнорируются), при отсутствии ключа выдаёт `ValueError`, остальное делегирует `make_student`, который приводит `gpa` к `float` и проверяет значения.
+8. **Нет `class`:** используются только словари и функции.
+
+---
+
+### Задание В
+
+### `serialize.py`
+```python
+import json
+from pathlib import Path
+
+from src.lab08.models import student_to_dict, student_from_dict
+
+
+def students_to_json(students, path):
+    """Сохраняет список записей в JSON (массив объектов)."""
+    data = [student_to_dict(s) for s in students]
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def students_from_json(path):
+    """Читает JSON-массив и возвращает список валидных записей.
+
+    Политика: skip - битые записи пропускаются, в конце печатается,
+    сколько пропущено и почему.
+    """
+    if not Path(path).is_file():
+        raise FileNotFoundError(f"Файл не найден: {path}")
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError("ожидается JSON-массив записей")
+
+    students = []
+    errors = []
+    for number, item in enumerate(data, start=1):
+        try:
+            students.append(student_from_dict(item))
+        except ValueError as e:
+            errors.append(f"запись #{number}: {e}")
+
+    if errors:
+        print(f"Пропущено записей: {len(errors)}")
+        for message in errors:
+            print(f"  - {message}")
+    return students
+```
+1. **`students_to_json`:** каждая запись превращается в копию через `student_to_dict` (заодно проверяется), затем весь список записывается как JSON-массив с `ensure_ascii=False` и `indent=2`. Папка для файла создаётся при необходимости.
+2. **`students_from_json`:** читает JSON-массив, каждую запись прогоняет через `student_from_dict`. Если файла нет, возбуждается `FileNotFoundError`, если в файле не массив, то `ValueError`.
+3. **Политика битых записей:** выбрана **`skip`**. Битая запись пропускается, остальные читаются дальше, а в конце в консоль выводится, сколько записей пропущено, с номером каждой записи (нумерация с 1) и причиной. Такая политика позволяет загрузить всё корректное из файла, а проблемные записи видны в отчёте.
+
+---
+
+## Пример работы models.py:
+
+```python 
+def main():
+    s = make_student("Сидоров Пётр Олегович", "2007-09-20", "БИВТ-26-6-1", 4)
+    print("Создан студент:", s)
+
+    # 1. форматирование
+    print("Форматирование:", format_student(s))
+
+    # 2. возраст до и после дня рождения
+    print(student_age(s, date(2026, 9, 19)), student_age(s, date(2026, 9, 20)))
+
+    # 3. неверная дата и gpa = 7
+    for args in (("Иванов Иван Иванович", "2003-02-30", "БИВТ-26-6-1", 4.0),
+                 ("Иванов Иван Иванович", "2007-05-14", "БИВТ-26-6-1", 7)):
+        try:
+            make_student(*args)
+        except ValueError as e:
+            print("ValueError:", e)
+
+if __name__ == "__main__":
+    main()
+```
+
+![](images/lab08/models.png)
+
+## Пример работы serialize.py
+**До преобразования (`data/lab08/students_input.json`):**
+```json
+[
+  {"fio": "Иванов Иван Иванович", "birthdate": "2007-05-14", "group": "БИВТ-26-6-1", "gpa": 4.3},
+  {"fio": "Петрова Анна Сергеевна", "birthdate": "2006-11-02", "group": "БИВТ-26-6-2", "gpa": 3.75},
+  {"fio": "Сидоров Пётр Олегович", "birthdate": "2007-09-20", "group": "БИВТ-26-6-1", "gpa": 5},
+  {"fio": "  Козлова  Мария     Андреевна ", "birthdate": "2005-02-28", "group": "БИВТ-26-6-3", "gpa": 4.0}
+]
+```
+Здесь у третьей записи `gpa` целое число (`5`), а в имени четвёртой лишние пробелы.
+
+**Вывод в консоль:**
+```
+Иванов И.И. (БИВТ-26-6-1), 19 лет, GPA 4.30
+Петрова А.С. (БИВТ-26-6-2), 19 лет, GPA 3.75
+Сидоров П.О. (БИВТ-26-6-1), 19 лет, GPA 5.00
+Козлова М.А. (БИВТ-26-6-3), 21 год, GPA 4.00
+Записано: 4 записей в students_output.json
+```
+**После преобразования (`data/lab08/students_output.json`):**
+```json
+[
+  {
+    "fio": "Иванов Иван Иванович",
+    "birthdate": "2007-05-14",
+    "group": "БИВТ-26-6-1",
+    "gpa": 4.3
+  },
+  {
+    "fio": "Петрова Анна Сергеевна",
+    "birthdate": "2006-11-02",
+    "group": "БИВТ-26-6-2",
+    "gpa": 3.75
+  },
+  {
+    "fio": "Сидоров Пётр Олегович",
+    "birthdate": "2007-09-20",
+    "group": "БИВТ-26-6-1",
+    "gpa": 5.0
+  },
+  {
+    "fio": "Козлова Мария Андреевна",
+    "birthdate": "2005-02-28",
+    "group": "БИВТ-26-6-3",
+    "gpa": 4.0
+  }
+]
+```
+Видно, что `5` стало `5.0`, а лишние пробелы в ФИО убраны.
+
+![](images/lab08/ser1.png)
+
+### Файл с битыми записями (`students_bad.json`)
+**Входной файл:**
+```json
+[
+  {"fio": "Иванов Иван Иванович", "birthdate": "2007-05-14", "group": "БИВТ-26-6-1", "gpa": 4.3},
+  {"fio": "Смирнов Олег Петрович", "birthdate": "2003-02-30", "group": "БИВТ-26-6-1", "gpa": 4.0},
+  {"fio": "Кузнецова Ольга Ивановна", "birthdate": "2006-03-15", "group": "БИВТ-26-6-2", "gpa": 7},
+  {"fio": "Попов Дмитрий Сергеевич", "birthdate": "2006-07-01", "gpa": 3.5},
+  {"fio": "   ", "birthdate": "2006-01-10", "group": "БИВТ-26-6-2", "gpa": 3.0},
+  {"fio": "Орлова Ксения Павловна", "birthdate": "2006-12-05", "group": "БИВТ-26-6-3", "gpa": 4.8}
+]
+```
+**Вывод в консоль:**
+```
+Пропущено записей: 4
+  - запись #2: поле birthdate: '2003-02-30' не является датой формата YYYY-MM-DD
+  - запись #3: поле gpa: значение 7 вне диапазона 0..5
+  - запись #4: нет поля group
+  - запись #5: поле fio: строка не должна быть пустой
+Прочитано валидных: 2
+```
+![](images/lab08/ser2.png)
+
+---
+
 # ЛР7 - Поиск, сортировка и измерение времени
 ### Задание А
 
