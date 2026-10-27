@@ -433,7 +433,7 @@ checks = 0  # счётчик выполненных проверок
 
 
 def check_sorting(fn, trials=100):
-    """Сравнивает fn(nums) со sorted(nums) на случайных списках."""
+    """Сравнивает fn(nums) с sorted(nums) на случайных списках."""
     global checks
     for _ in range(trials):
         n = random.randint(0, 50)
@@ -660,8 +660,6 @@ two_sum,1000,fast,0.000366
 two_sum,10000,brute,7.468968
 two_sum,10000,fast,0.003619
 ```
-
-![](images/lab07/bench_csv.png)
 
 ![](images/lab07/bench.png)
 
