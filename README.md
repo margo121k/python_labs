@@ -212,6 +212,26 @@ if __name__ == "__main__":
 ![](images/lab08/models.png)
 
 ## Пример работы serialize.py
+
+```python
+def main():
+    # корректные записи туда-обратно
+    students = students_from_json("data/lab08/students_input.json")
+    for s in students:
+        print(format_student(s))
+    students_to_json(students, "data/lab08/students_output.json")
+    print("Записано:", len(students), "записей в students_output.json")
+
+
+    # файл с битыми записями
+    good = students_from_json("data/lab08/students_bad.json")
+    print("Прочитано валидных:", len(good))
+
+
+if __name__ == "__main__":
+    main()
+```
+
 **До преобразования (`data/lab08/students_input.json`):**
 ```json
 [
@@ -224,13 +244,8 @@ if __name__ == "__main__":
 Здесь у третьей записи `gpa` целое число (`5`), а в имени четвёртой лишние пробелы.
 
 **Вывод в консоль:**
-```
-Иванов И.И. (БИВТ-26-6-1), 19 лет, GPA 4.30
-Петрова А.С. (БИВТ-26-6-2), 19 лет, GPA 3.75
-Сидоров П.О. (БИВТ-26-6-1), 19 лет, GPA 5.00
-Козлова М.А. (БИВТ-26-6-3), 21 год, GPA 4.00
-Записано: 4 записей в students_output.json
-```
+![](images/lab08/ser1.png)
+
 **После преобразования (`data/lab08/students_output.json`):**
 ```json
 [
@@ -262,7 +277,6 @@ if __name__ == "__main__":
 ```
 Видно, что `5` стало `5.0`, а лишние пробелы в ФИО убраны.
 
-![](images/lab08/ser1.png)
 
 ### Файл с битыми записями (`students_bad.json`)
 **Входной файл:**
@@ -277,14 +291,6 @@ if __name__ == "__main__":
 ]
 ```
 **Вывод в консоль:**
-```
-Пропущено записей: 4
-  - запись #2: поле birthdate: '2003-02-30' не является датой формата YYYY-MM-DD
-  - запись #3: поле gpa: значение 7 вне диапазона 0..5
-  - запись #4: нет поля group
-  - запись #5: поле fio: строка не должна быть пустой
-Прочитано валидных: 2
-```
 ![](images/lab08/ser2.png)
 
 ---
