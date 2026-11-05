@@ -7,7 +7,7 @@ checks = 0  # счётчик выполненных проверок
 
 
 def check_sorting(fn, trials=100):
-    """Сравнивает fn(nums) со sorted(nums) на случайных списках."""
+    """Сравнивает fn(nums) с sorted(nums) на случайных списках."""
     global checks
     for _ in range(trials):
         n = random.randint(0, 50)

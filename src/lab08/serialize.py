@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from src.lab08.models import *
+from src.lab08.models import student_to_dict, student_from_dict, format_student
 
 
 def students_to_json(students, path):
