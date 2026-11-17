@@ -1,3 +1,266 @@
+# ЛР9 - «База данных» на CSV: CRUD-функции над `students.csv` и CLI
+### Задание А
+
+### `group.py`
+```python
+import csv
+from pathlib import Path
+
+from src.lab08.models import STUDENT_FIELDS, student_from_dict, student_to_dict, validate_student
+
+HEADER = STUDENT_FIELDS
+
+
+def ensure_storage(path):
+    """Создаёт каталоги и файл с одной строкой-заголовком, если файла ещё нет."""
+    path = Path(path)
+    if not path.exists():
+        save_students(path, [])
+
+
+def _gpa_to_float(value):
+    """Из CSV gpa приходит строкой - приводим к float в одном месте (здесь)."""
+    if value is None or value.strip() == "":
+        raise ValueError("поле gpa: пустое значение")
+    try:
+        return float(value)
+    except ValueError:
+        raise ValueError(f"поле gpa: '{value}' не является числом")
+
+
+def load_students(path):
+    """Читает все записи из CSV. Каждая строка проходит через student_from_dict."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Файл не найден: {path}")
+
+    students = []
+    with open(path, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            raise ValueError("в CSV нет строки-заголовка")
+        if set(reader.fieldnames) != set(HEADER):
+            raise ValueError(
+                f"неверный заголовок CSV: {reader.fieldnames}, ожидается {list(HEADER)}"
+            )
+        for number, row in enumerate(reader, start=2):  # строка 1 - заголовок
+            if None in row:
+                raise ValueError(f"строка {number}: лишние колонки")
+            try:
+                row["gpa"] = _gpa_to_float(row["gpa"])
+                students.append(student_from_dict(row))
+            except ValueError as e:
+                raise ValueError(f"строка {number}: {e}")
+    return students
+
+
+def save_students(path, students):
+    """Перезаписывает файл целиком."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=HEADER)
+        writer.writeheader()
+        writer.writerows(students)
+```
+1. **Общий путь `path`:** каждая функция получает путь к CSV первым аргументом, общего состояния внутри модуля нет.
+2. **`ensure_storage`:** если файла нет, вызывает `save_students(path, [])`, то есть создаёт недостающие каталоги и файл с одной строкой-заголовком `fio,birthdate,group,gpa`.
+3. **`load_students`:** читает файл через `csv.DictReader` (`encoding="utf-8"`, `newline=""`). Проверяет, что заголовок есть и ровно такой, как `STUDENT_FIELDS`, лишние колонки в строке дают `ValueError`. Каждая строка проходит через `student_from_dict` из ЛР8. В сообщении об ошибке указывается номер строки файла.
+4. **Где лечится «строки из CSV»:** из CSV все значения приходят строками, поэтому `gpa` приводится к `float` один раз, при чтении, в функции `_gpa_to_float`. Без этого `"10.0" < "3.9"` как строки, а `student_from_dict` отклонил бы `gpa` как не число.
+5. **`save_students`:** перезаписывает файл целиком через `csv.DictWriter(fieldnames=HEADER)`, сначала `writeheader()`, затем `writerows`.
+
+```python
+def add_student(path, student):
+    """Валидирует запись и дописывает её в конец."""
+    validate_student(student)
+    students = load_students(path)
+    students.append(student_to_dict(student))
+    save_students(path, students)
+
+
+def list_students(path, sort_by=None):
+    """Все студенты; sort_by: None, "fio" или "gpa" (по возрастанию)."""
+    students = load_students(path)
+    if sort_by is None:
+        return students
+    if sort_by not in ("fio", "gpa"):
+        raise ValueError(f"неизвестное поле сортировки: {sort_by}")
+    return sorted(students, key=lambda s: s[sort_by])
+
+
+def find_students(path, substr):
+    """Записи, у которых substr входит в ФИО (без учёта регистра)."""
+    students = load_students(path)
+    needle = substr.casefold()
+    return [s for s in students if needle in s["fio"].casefold()]
+
+
+def remove_student(path, fio):
+    """Удаляет все записи с таким ФИО, возвращает их количество."""
+    students = load_students(path)
+    kept = [s for s in students if s["fio"] != fio]
+    removed = len(students) - len(kept)
+    if removed > 0:
+        save_students(path, kept)
+    return removed
+
+
+def update_student(path, fio, **fields):
+    """Обновляет поля первой записи с таким ФИО. True, если запись найдена."""
+    for key in fields:
+        if key not in HEADER:
+            raise KeyError(f"неизвестное поле: {key}")
+    students = load_students(path)
+    for i in range(len(students)):
+        if students[i]["fio"] == fio:
+            new_rec = dict(students[i])
+            new_rec.update(fields)
+            students[i] = student_from_dict(new_rec)  # проверка результата
+            save_students(path, students)
+            return True
+    return False
+```
+6. **Схема «загрузить -> изменить -> сохранить»:** CSV нельзя изменить на месте, поэтому `add_student`, `remove_student` и `update_student` загружают весь файл в список, меняют его в памяти и записывают заново. `list_students` и `find_students` только читают.
+7. **`add_student`:** сначала `validate_student`, затем загрузка, добавление копии записи в конец и сохранение. Невалидная запись в файл не попадает.
+8. **`list_students`:** `sort_by` может быть `None`, `"fio"` или `"gpa"`. Сортировка через `sorted(..., key=lambda s: s[sort_by])`. Так как `gpa` уже `float`, порядок числовой. Неизвестное значение дает `ValueError`.
+9. **`find_students`:** сравнивает `substr.casefold()` с `fio.casefold()`, поэтому регистр не важен (в том числе для кириллицы).
+10. **`remove_student`:** оставляет в списке все записи с другим ФИО и возвращает, сколько удалено (удаляются **все** совпадения). Файл перезаписывается только если что-то удалено.
+11. **`update_student`:** неизвестный ключ дает `KeyError`. Обновляется **первая** запись с таким ФИО: делается копия, применяются поля, результат снова проходит через `student_from_dict`, то есть валидируется. Возвращает `True`, если запись найдена, иначе `False`.
+12. **Нет `class`:** только функции с явным `path`.
+
+---
+
+### Задание В
+
+### `cli_students.py`
+```python
+import argparse
+import sys
+
+from src.lab08.models import make_student, format_student
+from src.lab09.group import ensure_storage, add_student, list_students, find_students, remove_student, update_student
+
+DEFAULT_DB = "data/lab09/students.csv"
+
+
+def fail(message):
+    """Печатает ошибку в stderr и завершает программу с кодом 1."""
+    print(f"Ошибка: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def main():
+    # общий параметр --db для всех подкоманд
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--db", default=DEFAULT_DB, help=f"путь к CSV-хранилищу (по умолчанию {DEFAULT_DB})")
+
+    parser = argparse.ArgumentParser(description="CLI для хранилища студентов (CSV)")
+    sub = parser.add_subparsers(dest="cmd")
+
+    p = sub.add_parser("add", parents=[common], help="Добавить студента")
+    p.add_argument("--fio", required=True)
+    p.add_argument("--birthdate", required=True, help="YYYY-MM-DD")
+    p.add_argument("--group", required=True)
+    p.add_argument("--gpa", type=float, required=True, help="от 0 до 5")
+
+    p = sub.add_parser("list", parents=[common], help="Вывести всех студентов")
+    p.add_argument("--sort", choices=["fio", "gpa"], help="сортировка")
+
+    p = sub.add_parser("find", parents=[common], help="Поиск по подстроке в ФИО")
+    p.add_argument("--q", required=True, help="подстрока (без учёта регистра)")
+
+    p = sub.add_parser("remove", parents=[common], help="Удалить студента по ФИО")
+    p.add_argument("--fio", required=True)
+
+    p = sub.add_parser("update", parents=[common], help="Обновить поля студента")
+    p.add_argument("--fio", required=True)
+    p.add_argument("--gpa", type=float)
+    p.add_argument("--group")
+    p.add_argument("--birthdate")
+
+    args = parser.parse_args()
+    if args.cmd is None:
+        parser.error("нужно указать подкоманду: add, list, find, remove или update")
+
+    try:
+        ensure_storage(args.db)
+
+        if args.cmd == "add":
+            student = make_student(args.fio, args.birthdate, args.group, args.gpa)
+            add_student(args.db, student)
+            print(f"Добавлен: {format_student(student)}")
+
+        elif args.cmd == "list":
+            students = list_students(args.db, args.sort)
+            if not students:
+                print("Студентов нет")
+            for s in students:
+                print(format_student(s))
+
+        elif args.cmd == "find":
+            students = find_students(args.db, args.q)
+            if not students:
+                print("Ничего не найдено")
+            for s in students:
+                print(format_student(s))
+
+        elif args.cmd == "remove":
+            print(f"Удалено записей: {remove_student(args.db, args.fio)}")
+
+        elif args.cmd == "update":
+            fields = {}
+            if args.gpa is not None:
+                fields["gpa"] = args.gpa
+            if args.group is not None:
+                fields["group"] = args.group
+            if args.birthdate is not None:
+                fields["birthdate"] = args.birthdate
+            if not fields:
+                parser.error("укажите хотя бы одно поле для обновления: --gpa, --group или --birthdate")
+            if update_student(args.db, args.fio, **fields):
+                print(f"Обновлено: {args.fio}")
+            else:
+                fail(f"студент не найден: {args.fio}")
+
+    except KeyError as e:
+        fail(e.args[0])
+    except (ValueError, FileNotFoundError) as e:
+        fail(e)
+
+
+if __name__ == "__main__":
+    main()
+```
+1. **Общий `--db`:** задан один раз в родительском парсере `common` (`add_help=False`) и подключен ко всем подкомандам через `parents=[common]`. По умолчанию `data/lab09/students.csv`.
+2. **Подкоманды:** `add`, `list`, `find`, `remove`, `update` создаются через `add_subparsers(dest="cmd")`. У `add` все поля обязательные, у `update` обязателен `--fio`, остальные поля необязательные. `--sort` ограничен `choices=["fio", "gpa"]`.
+3. **Вывод:** записи печатаются по одной на строку через `format_student` из ЛР8.
+4. **Ошибки:** функция `fail` печатает `Ошибка: ...` в **stderr** и завершает программу с кодом **1**. Ловятся `ValueError` (невалидные данные), `KeyError` (неизвестное поле) и `FileNotFoundError`. Ошибки аргументов (`update` без полей, неверный `--sort`) обрабатывает `argparse`, код возврата 2.
+5. **Хранилище:** перед любой командой вызывается `ensure_storage`, поэтому на пустой системе файл создаётся сам.
+
+---
+
+## Сценарий из 7 команд подряд
+
+![](images/lab09/01.png)
+![](images/lab09/02.png)
+![](images/lab09/03.png)
+
+
+**Итоговый `data/lab09/students.csv`:**
+```csv
+fio,birthdate,group,gpa
+Иванов Иван,2008-09-17,БИВТ-26-6-1,4.8
+Кузнецова Ирина Александровна,2009-04-02,БИВТ-26-6-2,3.23
+```
+
+---
+
+## Обработка ошибок
+
+![](images/lab09/11.png)
+
+---
+
 # ЛР8 - Модель данных без классов: запись `Student` как словарь, валидация и сериализация
 ### Задание А
 
