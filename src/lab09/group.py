@@ -7,14 +7,14 @@ HEADER = STUDENT_FIELDS
 
 
 def ensure_storage(path):
-    """Создаёт каталоги и файл с одной строкой-заголовком, если файла ещё нет."""
+    """Создаёт каталоги и файл с одной строкой-заголовком, если файла ещё нет"""
     path = Path(path)
     if not path.exists():
         save_students(path, [])
 
 
 def _gpa_to_float(value):
-    """Из CSV gpa приходит строкой - приводим к float в одном месте (здесь)."""
+    """Из CSV gpa приходит строкой - приводим к float в одном месте"""
     if value is None or value.strip() == "":
         raise ValueError("поле gpa: пустое значение")
     try:
